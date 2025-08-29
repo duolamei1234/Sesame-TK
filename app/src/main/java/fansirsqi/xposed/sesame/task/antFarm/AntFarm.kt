@@ -811,7 +811,7 @@ class AntFarm : ModelTask() {
             Log.record(TAG, "🐔 喂食计算 - 已吃饲料: ${allFoodHaveEatten}g, 消耗速度: ${allConsumeSpeed}g/s, 开始时间: ${TimeUtil.getCommonDate(startEatTime)}")
 
             if (allConsumeSpeed > 0) {
-                val nextFeedTime = startEatTime + ((180 - allFoodHaveEatten) / allConsumeSpeed).toLong() * 1000
+                val nextFeedTime = startEatTime + (((180 - allFoodHaveEatten) / allConsumeSpeed) * 1000 ).toLong()
                 val taskId = "FA|$ownerFarmId"
 
                 if (!hasChildTask(taskId)) {
