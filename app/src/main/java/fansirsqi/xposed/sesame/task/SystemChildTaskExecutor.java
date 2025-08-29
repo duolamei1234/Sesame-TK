@@ -31,7 +31,7 @@ public class SystemChildTaskExecutor implements ChildTaskExecutor {
         handler = ApplicationHook.getMainHandler();
     }
 
-    @Override
+@Override
     public Boolean addChildTask(ModelTask.ChildModelTask childTask) {
         long execTime = childTask.getExecTime();
         Runnable runnable = () -> {
@@ -53,32 +53,46 @@ public class SystemChildTaskExecutor implements ChildTaskExecutor {
                         }
                     }
 
-                    childTask.run();
+                    // 再次检查任务是否被取消
+                    if (!childTask.getIsCancel()) {
+                        childTask.run();
+                    }
 
                 } catch (Throwable t) {
                     Log.printStackTrace(TAG, "子任务执行异常: " + childTask.getId(), t);
                 } finally {
-                    // 可选：根据业务决定是否移除
+                    // 任务执行完成后移除
                     childTask.getModelTask().removeChildTask(childTask.getId());
                 }
                 return null;
             });
 
-            childTask.setCancelTask(() -> future.cancel(true));
+            childTask.setCancelTask(() -> {
+                future.cancel(true);
+                childTask.setCancel(true);
+            });
         };
 
         if (execTime > 0) {
             long delayMillis = execTime - System.currentTimeMillis();
-            if (delayMillis > 3000) {
-                handler.postDelayed(runnable, delayMillis - 2500);
+            
+            // 对于长时间延迟的任务，使用更精确的调度方式
+            if (delayMillis > 60000) { // 1分钟以上的任务
+                // 使用AlarmManager或WorkManager进行精确调度（需要额外实现）
+                // 目前先使用Handler，但确保任务能够被正确唤醒
+                handler.postDelayed(runnable, Math.max(0, delayMillis - 30000)); // 提前30秒准备
+                childTask.setCancelTask(() -> handler.removeCallbacks(runnable));
+            } else if (delayMillis > 5000) { // 5秒到1分钟的任务
+                handler.postDelayed(runnable, Math.max(0, delayMillis - 2000)); // 提前2秒准备
                 childTask.setCancelTask(() -> handler.removeCallbacks(runnable));
             } else {
-                // 防止负数或过小 delay
+                // 短时间任务直接执行
                 delayMillis = Math.max(0, delayMillis);
                 childTask.setCancelTask(() -> handler.removeCallbacks(runnable));
                 handler.postDelayed(runnable, delayMillis);
             }
         } else {
+            // 立即执行的任务
             handler.post(runnable);
         }
 
