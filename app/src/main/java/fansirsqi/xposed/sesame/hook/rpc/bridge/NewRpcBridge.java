@@ -118,14 +118,15 @@ public class NewRpcBridge implements RpcBridge {
     }
 
 @Override
-    public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
+public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
         if (ApplicationHook.isOffline()) {
+            Log.warn(TAG, "系统处于离线模式，跳过RPC请求: " + rpcEntity.getRequestMethod());
             return null;
         }
         
         // 检查RPC实例和方法是否初始化
         if (newRpcInstance == null || newRpcCallMethod == null) {
-            Log.error(TAG, "RPC instance or method not initialized - newRpcInstance: " + newRpcInstance + ", newRpcCallMethod: " + newRpcCallMethod);
+            Log.error(TAG, "RPC实例或方法未初始化 - newRpcInstance: " + newRpcInstance + ", newRpcCallMethod: " + newRpcCallMethod);
             return null;
         }
         
@@ -151,6 +152,11 @@ public class NewRpcBridge implements RpcBridge {
                                         if (args != null && args.length == 1 && "sendJSONResponse".equals(innerMethod.getName())) {
                                             try {
                                                 Object obj = args[0];
+                                                if (obj == null) {
+                                                    Log.error(TAG, "RPC回调接收到空响应对象 - method: " + rpcEntity.getRequestMethod());
+                                                    rpcEntity.setError();
+                                                    return null;
+                                                }
                                                 rpcEntity.setResponseObject(obj, (String) XposedHelpers.callMethod(obj, "toJSONString"));
                                                 if (!(Boolean) XposedHelpers.callMethod(obj, "containsKey", "success")
                                                         && !(Boolean) XposedHelpers.callMethod(obj, "containsKey", "isSuccess")) {
@@ -168,12 +174,17 @@ public class NewRpcBridge implements RpcBridge {
                                         return null;
                                     })
                     );
+                    
+                    // 检查是否获得结果
                     if (!rpcEntity.getHasResult()) {
-                        return null;
+                        Log.warn(TAG, "RPC请求未获得结果 - method: " + rpcEntity.getRequestMethod() + ", 尝试次数: " + count + "/" + tryCount);
+                        continue;
                     }
+                    
                     if (!rpcEntity.getHasError()) {
                         return rpcEntity;
                     }
+                    
                     try {
                         String errorCode = (String) XposedHelpers.callMethod(rpcEntity.getResponseObject(), "getString", "error");
                         String errorMessage = (String) XposedHelpers.callMethod(rpcEntity.getResponseObject(), "getString", "errorMessage");
@@ -236,6 +247,8 @@ public class NewRpcBridge implements RpcBridge {
                     }
                 }
             } while (count < tryCount);
+            
+            Log.error(TAG, "RPC请求失败，达到最大重试次数 - method: " + rpcEntity.getRequestMethod() + ", 总尝试次数: " + tryCount);
             return null;
         } finally {
             Log.system(TAG, "New RPC\n方法: " + rpcEntity.getRequestMethod() + "\n参数: " + rpcEntity.getRequestData() + "\n数据: " + rpcEntity.getResponseString() + "\n");
