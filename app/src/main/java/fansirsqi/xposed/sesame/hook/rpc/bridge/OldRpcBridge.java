@@ -85,29 +85,52 @@ public class OldRpcBridge implements RpcBridge {
         return responseEntity != null ? responseEntity.getResponseString() : null; // 返回响应字符串或 null
     }
 @Override
-    public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
+public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
         if (ApplicationHook.isOffline()) {
+            Log.warn(TAG, "系统处于离线模式，跳过RPC请求: " + rpcEntity.getRequestMethod());
             return null; // 如果离线，直接返回 null
         }
         
         // 检查RPC方法是否初始化
         if (rpcCallMethod == null) {
-            Log.error(TAG, "RPC method not initialized - rpcCallMethod is null");
+            Log.error(TAG, "RPC方法未初始化 - rpcCallMethod is null");
             return null;
         }
         
         int id = rpcEntity.hashCode(); // 获取请求 ID
         String method = rpcEntity.getRequestMethod(); // 获取请求方法
         String args = rpcEntity.getRequestData(); // 获取请求参数
+        
         for (int count = 0; count < tryCount; count++) {
             try {
                 RpcIntervalLimit.INSTANCE.enterIntervalLimit(method); // 进入 RPC 调用间隔限制
                 Object response = invokeRpcCall(method, args); // 调用 RPC 方法
-                return processResponse(rpcEntity, response, id, method, args, retryInterval); // 处理响应
+                
+                // 检查响应是否为空
+                if (response == null) {
+                    Log.warn(TAG, "RPC调用返回空响应 - method: " + method + ", 尝试次数: " + (count + 1) + "/" + tryCount);
+                    continue; // 继续重试
+                }
+                
+                RpcEntity result = processResponse(rpcEntity, response, id, method, args, retryInterval); // 处理响应
+                if (result != null) {
+                    return result;
+                }
             } catch (Throwable t) {
                 handleError(rpcEntity, t, method, id, args); // 处理错误
             }
+            
+            // 重试间隔逻辑
+            if (retryInterval > 0) {
+                try {
+                    Thread.sleep(retryInterval);
+                } catch (InterruptedException e) {
+                    Log.printStackTrace(e);
+                }
+            }
         }
+        
+        Log.error(TAG, "RPC请求失败，达到最大重试次数 - method: " + method + ", 总尝试次数: " + tryCount);
         return null; // 所有尝试失败后返回 null
     }
     /**
@@ -137,22 +160,37 @@ public class OldRpcBridge implements RpcBridge {
      * @return 更新后的 RPC 实体。
      * @throws Throwable 如果处理过程中出现错误。
      */
-    private RpcEntity processResponse(RpcEntity rpcEntity, Object response, int id, String method, String args, int retryInterval) throws Throwable {
+private RpcEntity processResponse(RpcEntity rpcEntity, Object response, int id, String method, String args, int retryInterval) throws Throwable {
         String resultStr = (String) getResponseMethod.invoke(response); // 获取响应字符串
-        JSONObject resultObject = new JSONObject(resultStr);
-        rpcEntity.setResponseObject(resultObject, resultStr); // 设置响应对象
-        // 检查响应中的 "memo" 字段是否包含 "系统繁忙"
-        if (resultObject.optString("memo", "").contains("系统繁忙")) {
-            ApplicationHook.setOffline(true); // 设置为离线状态
-            Notify.updateStatusText("系统繁忙，可能需要滑动验证");
-            Log.record(TAG,"系统繁忙，可能需要滑动验证");
-            return null; // 返回 null
+        
+        // 检查响应字符串是否为空
+        if (resultStr == null || resultStr.trim().isEmpty()) {
+            Log.error(TAG, "RPC响应字符串为空 - method: " + method);
+            return null;
         }
-        if (!resultObject.optBoolean("success")) {
-            rpcEntity.setError(); // 设置为错误状态
-            Log.error(TAG,"旧 RPC 响应 | id: " + id + " | method: " + method + " args: " + args + " | data: " + rpcEntity.getResponseString());
+        
+        try {
+            JSONObject resultObject = new JSONObject(resultStr);
+            rpcEntity.setResponseObject(resultObject, resultStr); // 设置响应对象
+            
+            // 检查响应中的 "memo" 字段是否包含 "系统繁忙"
+            if (resultObject.optString("memo", "").contains("系统繁忙")) {
+                ApplicationHook.setOffline(true); // 设置为离线状态
+                Notify.updateStatusText("系统繁忙，可能需要滑动验证");
+                Log.record(TAG,"系统繁忙，可能需要滑动验证");
+                return null; // 返回 null
+            }
+            
+            if (!resultObject.optBoolean("success")) {
+                rpcEntity.setError(); // 设置为错误状态
+                Log.error(TAG,"旧 RPC 响应 | id: " + id + " | method: " + method + " args: " + args + " | data: " + rpcEntity.getResponseString());
+            }
+            
+            return rpcEntity; // 返回更新后的 RPC 实体
+        } catch (JSONException e) {
+            Log.error(TAG, "解析RPC响应JSON失败 - method: " + method + ", response: " + resultStr);
+            throw e;
         }
-        return rpcEntity; // 返回更新后的 RPC 实体
     }
     /**
      * 处理 RPC 请求过程中发生的错误。
