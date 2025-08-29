@@ -97,9 +97,14 @@ public class ApplicationHook {
     static AlipayVersion alipayVersion = new AlipayVersion("");
     private static volatile boolean hooked = false;
 
-    @JvmStatic
+@JvmStatic
     public static boolean isHooked() {
         return hooked;
+    }
+
+    @JvmStatic
+    public static boolean isRpcBridgeInitialized() {
+        return rpcBridge != null;
     }
 
     private static volatile boolean init = false;
@@ -596,13 +601,14 @@ public class ApplicationHook {
 
                 setWakenAtTimeAlarm();
 
-                if (BaseModel.getNewRpc().getValue()) {
+if (BaseModel.getNewRpc().getValue()) {
                     rpcBridge = new NewRpcBridge();
                 } else {
                     rpcBridge = new OldRpcBridge();
                 }
                 rpcBridge.load();
                 rpcVersion = rpcBridge.getVersion();
+                Log.record(TAG, "RPC桥接系统初始化完成，版本: " + (rpcVersion != null ? rpcVersion.name() : "未知"));
                 if (BaseModel.getNewRpc().getValue() && BaseModel.getDebugMode().getValue()) {
                     HookUtil.INSTANCE.hookRpcBridgeExtension(appLloadPackageParam, BaseModel.getSendHookData().getValue(), BaseModel.getSendHookDataUrl().getValue());
                     HookUtil.INSTANCE.hookDefaultBridgeCallback(appLloadPackageParam);
@@ -713,7 +719,7 @@ public class ApplicationHook {
                 dayCalendar.set(Calendar.MINUTE, 0);
                 dayCalendar.set(Calendar.SECOND, 0);
                 Log.record(TAG, "日期更新为：" + nowYear + "-" + (nowMonth + 1) + "-" + nowDay);
-                setWakenAtTimeAlarm();
+setWakenAtTimeAlarm();
             }
         } catch (Exception e) {
             Log.printStackTrace(e);
