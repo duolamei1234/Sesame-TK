@@ -117,11 +117,18 @@ public class NewRpcBridge implements RpcBridge {
         return null;
     }
 
-    @Override
+@Override
     public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
         if (ApplicationHook.isOffline()) {
             return null;
         }
+        
+        // 检查RPC实例和方法是否初始化
+        if (newRpcInstance == null || newRpcCallMethod == null) {
+            Log.error(TAG, "RPC instance or method not initialized - newRpcInstance: " + newRpcInstance + ", newRpcCallMethod: " + newRpcCallMethod);
+            return null;
+        }
+        
         try {
             int count = 0;
             do {
