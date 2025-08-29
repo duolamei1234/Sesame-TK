@@ -86,53 +86,53 @@ public class OldRpcBridge implements RpcBridge {
     }
 @Override
 public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
-        if (ApplicationHook.isOffline()) {
-            Log.warn(TAG, "系统处于离线模式，跳过RPC请求: " + rpcEntity.getRequestMethod());
-            return null; // 如果离线，直接返回 null
-        }
-        
-        // 检查RPC方法是否初始化
-        if (rpcCallMethod == null) {
-            Log.error(TAG, "RPC方法未初始化 - rpcCallMethod is null");
-            return null;
-        }
-        
-        int id = rpcEntity.hashCode(); // 获取请求 ID
-        String method = rpcEntity.getRequestMethod(); // 获取请求方法
-        String args = rpcEntity.getRequestData(); // 获取请求参数
-        
-        for (int count = 0; count < tryCount; count++) {
-            try {
-                RpcIntervalLimit.INSTANCE.enterIntervalLimit(method); // 进入 RPC 调用间隔限制
-                Object response = invokeRpcCall(method, args); // 调用 RPC 方法
-                
-                // 检查响应是否为空
-                if (response == null) {
-                    Log.warn(TAG, "RPC调用返回空响应 - method: " + method + ", 尝试次数: " + (count + 1) + "/" + tryCount);
-                    continue; // 继续重试
-                }
-                
-                RpcEntity result = processResponse(rpcEntity, response, id, method, args, retryInterval); // 处理响应
-                if (result != null) {
-                    return result;
-                }
-            } catch (Throwable t) {
-                handleError(rpcEntity, t, method, id, args); // 处理错误
+    if (ApplicationHook.isOffline()) {
+        Log.record(TAG, "系统处于离线模式，跳过RPC请求: " + rpcEntity.getRequestMethod());
+        return null; // 如果离线，直接返回 null
+    }
+    
+    // 检查RPC方法是否初始化
+    if (rpcCallMethod == null) {
+        Log.error(TAG, "RPC方法未初始化 - rpcCallMethod is null");
+        return null;
+    }
+    
+    int id = rpcEntity.hashCode(); // 获取请求 ID
+    String method = rpcEntity.getRequestMethod(); // 获取请求方法
+    String args = rpcEntity.getRequestData(); // 获取请求参数
+    
+    for (int count = 0; count < tryCount; count++) {
+        try {
+            RpcIntervalLimit.INSTANCE.enterIntervalLimit(method); // 进入 RPC 调用间隔限制
+            Object response = invokeRpcCall(method, args); // 调用 RPC 方法
+            
+            // 检查响应是否为空
+            if (response == null) {
+                Log.record(TAG, "RPC调用返回空响应 - method: " + method + ", 尝试次数: " + (count + 1) + "/" + tryCount);
+                continue; // 继续重试
             }
             
-            // 重试间隔逻辑
-            if (retryInterval > 0) {
-                try {
-                    Thread.sleep(retryInterval);
-                } catch (InterruptedException e) {
-                    Log.printStackTrace(e);
-                }
+            RpcEntity result = processResponse(rpcEntity, response, id, method, args, retryInterval); // 处理响应
+            if (result != null) {
+                return result;
             }
+        } catch (Throwable t) {
+            handleError(rpcEntity, t, method, id, args); // 处理错误
         }
         
-        Log.error(TAG, "RPC请求失败，达到最大重试次数 - method: " + method + ", 总尝试次数: " + tryCount);
-        return null; // 所有尝试失败后返回 null
+        // 重试间隔逻辑
+        if (retryInterval > 0) {
+            try {
+                Thread.sleep(retryInterval);
+            } catch (InterruptedException e) {
+                Log.printStackTrace(e);
+            }
+        }
     }
+    
+    Log.error(TAG, "RPC请求失败，达到最大重试次数 - method: " + method + ", 总尝试次数: " + tryCount);
+    return null; // 所有尝试失败后返回 null
+}
     /**
      * 使用反射调用 RPC 方法。
      *
