@@ -109,7 +109,7 @@ public class NewRpcBridge implements RpcBridge {
         loader = null;
     }
 
-    public String requestString(RpcEntity rpcEntity, int tryCount, int retryInterval) {
+public String requestString(RpcEntity rpcEntity, int tryCount, int retryInterval) {
         RpcEntity resRpcEntity = requestObject(rpcEntity, tryCount, retryInterval);
         if (resRpcEntity != null) {
             return resRpcEntity.getResponseString();
@@ -120,7 +120,7 @@ public class NewRpcBridge implements RpcBridge {
 @Override
 public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
         if (ApplicationHook.isOffline()) {
-            Log.warn(TAG, "系统处于离线模式，跳过RPC请求: " + rpcEntity.getRequestMethod());
+            Log.record(TAG, "系统处于离线模式，跳过RPC请求: " + rpcEntity.getRequestMethod());
             return null;
         }
         
@@ -177,7 +177,7 @@ public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInter
                     
                     // 检查是否获得结果
                     if (!rpcEntity.getHasResult()) {
-                        Log.warn(TAG, "RPC请求未获得结果 - method: " + rpcEntity.getRequestMethod() + ", 尝试次数: " + count + "/" + tryCount);
+                        Log.record(TAG, "RPC请求未获得结果 - method: " + rpcEntity.getRequestMethod() + ", 尝试次数: " + count + "/" + tryCount);
                         continue;
                     }
                     
