@@ -84,11 +84,18 @@ public class OldRpcBridge implements RpcBridge {
         RpcEntity responseEntity = requestObject(rpcEntity, tryCount, retryInterval);
         return responseEntity != null ? responseEntity.getResponseString() : null; // 返回响应字符串或 null
     }
-    @Override
+@Override
     public RpcEntity requestObject(RpcEntity rpcEntity, int tryCount, int retryInterval) {
         if (ApplicationHook.isOffline()) {
             return null; // 如果离线，直接返回 null
         }
+        
+        // 检查RPC方法是否初始化
+        if (rpcCallMethod == null) {
+            Log.error(TAG, "RPC method not initialized - rpcCallMethod is null");
+            return null;
+        }
+        
         int id = rpcEntity.hashCode(); // 获取请求 ID
         String method = rpcEntity.getRequestMethod(); // 获取请求方法
         String args = rpcEntity.getRequestData(); // 获取请求参数
