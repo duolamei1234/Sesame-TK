@@ -25,7 +25,8 @@ public class AntForestRpcCall {
         AlipayVersion alipayVersion = ApplicationHook.getAlipayVersion();
     Log.record("AntForestRpcCall","当前支付宝版本:" + alipayVersion.toString());
         if (alipayVersion.compareTo(new AlipayVersion("10.5.88.8000")) > 0) {
-            VERSION = "20240403";
+           // VERSION = "20240403";
+            VERSION = "20250818";
         } else if (alipayVersion.compareTo(new AlipayVersion("10.3.96.8100")) > 0) {
             VERSION = "20230501";
         } else {
