@@ -2270,29 +2270,60 @@ public class AntForest extends ModelTask {
      * @param propJsonObj 道具对象
      */
     private boolean usePropBag(JSONObject propJsonObj) {
-        if (propJsonObj == null) {
-            Log.record(TAG, "要使用的道具不存在！");
-            return false;
-        }
-        try {
-            JSONObject jo = new JSONObject(AntForestRpcCall.consumeProp(propJsonObj.getJSONArray("propIdList").getString(0), propJsonObj.getString("propType")));
-            if (ResChecker.checkRes(TAG + "使用道具失败:", jo)) {
-                String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
-                String tag = propEmoji(propName);
-                Log.forest("使用道具" + tag + "[" + propName + "]");
-                updateSelfHomePage();
-                return true;
-            } else {
-                Log.record(jo.getString("resultDesc"));
-                Log.runtime(jo.toString());
-                return false;
-            }
-        } catch (Throwable th) {
-            Log.runtime(TAG, "usePropBag err");
-            Log.printStackTrace(TAG, th);
-            return false;
-        }
+    if (propJsonObj == null) {
+        Log.record(TAG, "要使用的道具不存在！");
+        return false;
     }
+    try {
+        String propId = propJsonObj.getJSONArray("propIdList").getString(0);
+        String propType = propJsonObj.getString("propType");
+        
+        // 第一次调用：尝试使用道具（不进行二次确认）
+        JSONObject jo = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, false));
+        
+        if (ResChecker.checkRes(TAG + "使用道具失败:", jo)) {
+            String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
+            String tag = propEmoji(propName);
+            Log.forest("使用道具" + tag + "[" + propName + "]");
+            updateSelfHomePage();
+            return true;
+        } else {
+            // 检查是否需要二次确认
+            String resultDesc = jo.optString("resultDesc", "");
+            String resultStatus = jo.optString("resultStatus", "");
+            String usePropStatus = jo.optString("usePropStatus", "");
+            
+            // 判断是否需要二次确认
+            boolean needConfirm = "NEED_CONFIRM_CAN_PROLONG".equals(usePropStatus) || 
+                                 "NEED_CONFIRM_CAN_PROLONG".equals(resultStatus) ||
+                                 resultDesc.contains("确认") || 
+                                 resultDesc.contains("延长") ||
+                                 resultDesc.contains("再次");
+            
+            if (needConfirm) {
+                // 执行二次确认
+                JSONObject confirmResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, true));
+                if (ResChecker.checkRes(TAG + "确认使用道具失败:", confirmResult)) {
+                    String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
+                    String tag = propEmoji(propName);
+                    Log.forest("确认使用道具" + tag + "[" + propName + "]");
+                    updateSelfHomePage();
+                    return true;
+                }
+            }
+            
+            Log.record(jo.getString("resultDesc"));
+            Log.runtime(jo.toString());
+            return false;
+        }
+    } catch (Throwable th) {
+        Log.runtime(TAG, "usePropBag err");
+        Log.printStackTrace(TAG, th);
+        return false;
+    }
+}
+
+
 
     @NonNull
     private static String propEmoji(String propName) {
