@@ -2288,7 +2288,7 @@ private boolean usePropBag(JSONObject propJsonObj) {
             if (ResChecker.checkRes(TAG + "叠加道具失败:", result)) {
                 String tag = propEmoji(propName);
                 Log.forest("叠加道具" + tag + "[" + propName + "]时间");
-                handleProlongStatus(result, propType);
+                updateSelfHomePage();
                 return true;
             }
         } else {
@@ -2297,7 +2297,7 @@ private boolean usePropBag(JSONObject propJsonObj) {
             if (ResChecker.checkRes(TAG + "使用道具失败:", result)) {
                 String tag = propEmoji(propName);
                 Log.forest("使用道具" + tag + "[" + propName + "]");
-                updatePropEndTime(result, propType);
+                updateSelfHomePage();
                 return true;
             }
         }
