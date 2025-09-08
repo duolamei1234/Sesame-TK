@@ -2277,52 +2277,51 @@ public class AntForest extends ModelTask {
     try {
         String propId = propJsonObj.getJSONArray("propIdList").getString(0);
         String propType = propJsonObj.getString("propType");
+        String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
         
-        // 第一次调用：尝试使用道具（不进行二次确认）
-        JSONObject jo = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, false));
-        
-        if (ResChecker.checkRes(TAG + "使用道具失败:", jo)) {
-            String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
-            String tag = propEmoji(propName);
-            Log.forest("使用道具" + tag + "[" + propName + "]");
-            updateSelfHomePage();
-            return true;
-        } else {
-            // 检查是否需要二次确认
-            String resultDesc = jo.optString("resultDesc", "");
-            String resultStatus = jo.optString("resultStatus", "");
-            String usePropStatus = jo.optString("usePropStatus", "");
-            
-            // 判断是否需要二次确认
-            boolean needConfirm = "NEED_CONFIRM_CAN_PROLONG".equals(usePropStatus) || 
-                                 "NEED_CONFIRM_CAN_PROLONG".equals(resultStatus) ||
-                                 resultDesc.contains("确认") || 
-                                 resultDesc.contains("延长") ||
-                                 resultDesc.contains("再次");
-            
-            if (needConfirm) {
-                // 执行二次确认
-                JSONObject confirmResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, true));
-                if (ResChecker.checkRes(TAG + "确认使用道具失败:", confirmResult)) {
-                    String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
-                    String tag = propEmoji(propName);
-                    Log.forest("确认使用道具" + tag + "[" + propName + "]");
-                    updateSelfHomePage();
-                    return true;
-                }
-            }
-            
-            Log.record(jo.getString("resultDesc"));
-            Log.runtime(jo.toString());
+        // 前置检查：道具可用性
+        if (!isPropUsable(propJsonObj)) {
+            Log.record(TAG, "道具不可用: " + propName);
             return false;
         }
+        
+        // 第一次调用：尝试使用道具
+        JSONObject firstResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType));
+        
+        // 检查是否需要二次确认
+        String usePropStatus = firstResult.optString("usePropStatus", "");
+        if ("NEED_CONFIRM_CAN_PROLONG".equals(usePropStatus)) {
+            // 需要二次确认，重新调用带确认参数
+            JSONObject confirmResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, true));
+            if (ResChecker.checkRes(TAG + "确认使用道具失败:", confirmResult)) {
+                String tag = propEmoji(propName);
+                Log.forest("确认使用道具" + tag + "[" + propName + "]");
+                handleProlongStatus(confirmResult, propType);
+                updateSelfHomePage();
+                return true;
+            }
+            return false;
+        }
+        
+        // 正常情况检查结果
+        if (ResChecker.checkRes(TAG + "使用道具失败:", firstResult)) {
+            String tag = propEmoji(propName);
+            Log.forest("使用道具" + tag + "[" + propName + "]");
+            handleProlongStatus(firstResult, propType);
+            updateSelfHomePage();
+            return true;
+        }
+        
+        Log.record(firstResult.getString("resultDesc"));
+        Log.runtime(firstResult.toString());
+        return false;
+        
     } catch (Throwable th) {
         Log.runtime(TAG, "usePropBag err");
         Log.printStackTrace(TAG, th);
         return false;
     }
-}
-
+    }
 
 
     @NonNull
