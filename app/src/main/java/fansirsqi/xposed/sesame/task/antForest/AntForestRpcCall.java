@@ -23,6 +23,7 @@ public class AntForestRpcCall {
 
     public static void init() {
         AlipayVersion alipayVersion = ApplicationHook.getAlipayVersion();
+    Log.record("AntForestRpcCall","当前支付宝版本:" + alipayVersion.toString());
         if (alipayVersion.compareTo(new AlipayVersion("10.5.88.8000")) > 0) {
             VERSION = "20240403";
         } else if (alipayVersion.compareTo(new AlipayVersion("10.3.96.8100")) > 0) {
@@ -371,6 +372,24 @@ public class AntForestRpcCall {
         return RequestManager.requestString("alipay.antforest.forest.h5.collectProp", new JSONArray().put(jo).toString());
     }
 
+
+/**
+ * 使用道具（支持二次确认）
+ */
+public static String consumeProp(String propId, String propType, boolean secondConfirm) {
+    String args = "[{" +
+        "\"propId\":\"" + propId + "\"," +
+        "\"propType\":\"" + propType + "\"," +
+        "\"secondConfirm\":" + secondConfirm + "," +  // 新增二次确认参数
+        "\"source\":\"chInfo_ch_appcenter__chsub_9patch\"," +
+        "\"timezoneId\":\"Asia/Shanghai\"," +
+        "\"version\":\"" + VERSION + "\"" +
+    "}]";
+    
+    return RequestManager.requestString("alipay.antforest.forest.h5.consumeProp", args);
+}
+
+    
     public static String consumeProp(String propId, String propType) {
         return RequestManager.requestString(
                 "alipay.antforest.forest.h5.consumeProp",
