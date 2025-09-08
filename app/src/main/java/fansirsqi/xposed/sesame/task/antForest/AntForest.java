@@ -2269,7 +2269,7 @@ public class AntForest extends ModelTask {
      *
      * @param propJsonObj 道具对象
      */
-    private boolean usePropBag(JSONObject propJsonObj) {
+private boolean usePropBag(JSONObject propJsonObj) {
     if (propJsonObj == null) {
         Log.record(TAG, "要使用的道具不存在！");
         return false;
@@ -2279,43 +2279,102 @@ public class AntForest extends ModelTask {
         String propType = propJsonObj.getString("propType");
         String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
         
-    
-        // 第一次调用：尝试使用道具
-        JSONObject firstResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType));
-        
-        // 检查是否需要二次确认
-        String usePropStatus = firstResult.optString("usePropStatus", "");
-        if ("NEED_CONFIRM_CAN_PROLONG".equals(usePropStatus)) {
-            // 需要二次确认，重新调用带确认参数
-            JSONObject confirmResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, true));
-            if (ResChecker.checkRes(TAG + "确认使用道具失败:", confirmResult)) {
-                String tag = propEmoji(propName);
-                Log.forest("确认使用道具" + tag + "[" + propName + "]");
-                updateSelfHomePage();
-                return true;
-            }
+        // 前置检查：道具可用性
+        if (!isPropUsable(propJsonObj)) {
+            Log.record(TAG, "道具不可用: " + propName);
             return false;
         }
         
-        // 正常情况检查结果
-        if (ResChecker.checkRes(TAG + "使用道具失败:", firstResult)) {
-            String tag = propEmoji(propName);
-            Log.forest("使用道具" + tag + "[" + propName + "]");
-            
-            updateSelfHomePage();
-            return true;
+        // 先检查是否有同类型道具正在生效
+        if (hasActivePropByType(propType)) {
+            // 有生效道具，使用叠加方法（带确认参数）
+            JSONObject result = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, true));
+            if (ResChecker.checkRes(TAG + "叠加道具失败:", result)) {
+                String tag = propEmoji(propName);
+                Log.forest("叠加道具" + tag + "[" + propName + "]时间");
+                handleProlongStatus(result, propType);
+                return true;
+            }
+        } else {
+            // 没有生效道具，使用普通方法
+            JSONObject result = new JSONObject(AntForestRpcCall.consumeProp(propId, propType));
+            if (ResChecker.checkRes(TAG + "使用道具失败:", result)) {
+                String tag = propEmoji(propName);
+                Log.forest("使用道具" + tag + "[" + propName + "]");
+                updatePropEndTime(result, propType);
+                return true;
+            }
+        }
+        return false;
+        
+    } catch (Exception e) {
+        Log.record(TAG, "使用道具异常: " + e.getMessage());
+        return false;
+    }
+}
+    
+    /**
+ * 检查当前是否有同类型的道具正在生效
+ * @param propType 道具类型
+ * @return 如果有同类型道具正在生效返回true，否则返回false
+ */
+private boolean hasActivePropByType(String propType) {
+    try {
+        // 获取当前主页信息
+        JSONObject selfHomeObj = querySelfHome();
+        if (selfHomeObj == null) {
+            return false;
         }
         
-        Log.record(firstResult.getString("resultDesc"));
-        Log.runtime(firstResult.toString());
-        return false;
+        // 获取正在使用的道具列表
+        JSONArray usingUserPropsNew = selfHomeObj.optJSONArray("loginUserUsingPropNew");
+        if (usingUserPropsNew == null || usingUserPropsNew.length() == 0) {
+            usingUserPropsNew = selfHomeObj.optJSONArray("usingUserPropsNew");
+        }
         
-    } catch (Throwable th) {
-        Log.runtime(TAG, "usePropBag err");
-        Log.printStackTrace(TAG, th);
+        if (usingUserPropsNew == null || usingUserPropsNew.length() == 0) {
+            return false;
+        }
+        
+        long currentTime = System.currentTimeMillis();
+        
+        // 遍历道具列表，检查是否有同类型道具正在生效
+        for (int i = 0; i < usingUserPropsNew.length(); i++) {
+            JSONObject prop = usingUserPropsNew.getJSONObject(i);
+            String propGroup = prop.optString("propGroup", "");
+            
+            // 将propGroup转换为对应的propType进行比较
+            String currentPropType = convertPropGroupToType(propGroup);
+            if (propType.equals(currentPropType)) {
+                long endTime = prop.optLong("endTime", 0);
+                if (endTime > currentTime) {
+                    return true; // 找到同类型且正在生效的道具
+                }
+            }
+        }
+        
+        return false;
+    } catch (Exception e) {
+        Log.record(TAG, "检查道具状态异常: " + e.getMessage());
         return false;
     }
+}
+
+/**
+ * 将propGroup转换为对应的propType
+ * @param propGroup 道具组类型
+ * @return 对应的道具类型
+ */
+private String convertPropGroupToType(String propGroup) {
+    switch (propGroup) {
+        case "doubleClick": return "DOUBLE_CLICK_CARD";
+        case "stealthCard": return "STEALTH_CARD"; 
+        case "shield": return "ENERGY_SHIELD";
+        case "energyBombCard": return "ENERGY_BOMB_CARD";
+        case "robExpandCard": return "ROB_EXPAND_CARD";
+        default: return propGroup;
     }
+}
 
 
     @NonNull
