@@ -2279,11 +2279,7 @@ private boolean usePropBag(JSONObject propJsonObj) {
         String propType = propJsonObj.getString("propType");
         String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
         
-        // 前置检查：道具可用性
-        if (!isPropUsable(propJsonObj)) {
-            Log.record(TAG, "道具不可用: " + propName);
-            return false;
-        }
+        
         
         // 先检查是否有同类型道具正在生效
         if (hasActivePropByType(propType)) {
