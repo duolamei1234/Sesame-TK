@@ -2279,12 +2279,7 @@ public class AntForest extends ModelTask {
         String propType = propJsonObj.getString("propType");
         String propName = propJsonObj.getJSONObject("propConfigVO").getString("propName");
         
-        // 前置检查：道具可用性
-        if (!isPropUsable(propJsonObj)) {
-            Log.record(TAG, "道具不可用: " + propName);
-            return false;
-        }
-        
+    
         // 第一次调用：尝试使用道具
         JSONObject firstResult = new JSONObject(AntForestRpcCall.consumeProp(propId, propType));
         
@@ -2296,7 +2291,6 @@ public class AntForest extends ModelTask {
             if (ResChecker.checkRes(TAG + "确认使用道具失败:", confirmResult)) {
                 String tag = propEmoji(propName);
                 Log.forest("确认使用道具" + tag + "[" + propName + "]");
-                handleProlongStatus(confirmResult, propType);
                 updateSelfHomePage();
                 return true;
             }
@@ -2307,7 +2301,7 @@ public class AntForest extends ModelTask {
         if (ResChecker.checkRes(TAG + "使用道具失败:", firstResult)) {
             String tag = propEmoji(propName);
             Log.forest("使用道具" + tag + "[" + propName + "]");
-            handleProlongStatus(firstResult, propType);
+            
             updateSelfHomePage();
             return true;
         }
