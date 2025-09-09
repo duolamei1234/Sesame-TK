@@ -2293,7 +2293,7 @@ private boolean usePropBag(JSONObject propJsonObj) {
             }
         } else {
             // 没有生效道具，使用普通方法
-            JSONObject result = new JSONObject(AntForestRpcCall.consumeProp(propId, propType));
+            JSONObject result = new JSONObject(AntForestRpcCall.consumeProp(propId, propType, false));
             if (ResChecker.checkRes(TAG + "使用道具失败:", result)) {
                 String tag = propEmoji(propName);
                 Log.forest("使用道具" + tag + "[" + propName + "]");
